@@ -1,0 +1,287 @@
+---
+version: "3.6"
+
+networks:
+  external:
+  default:
+    driver: bridge
+
+services:
+
+#  sabnzbd:
+#    image: linuxserver/sabnzbd
+#    container_name: sabnzbd
+#    environment:
+#      - PUID=$USER_ID
+#      - PGID=$GROUP_ID
+#      - TZ=$TIMEZONE
+#    volumes:
+#      - $APP_DIR/sabnzbd/config:/config
+#      - $TMP_DIR/downloads:/downloads
+#      - $APP_DIR/sabnzbd/incomplete-downloads:/incomplete-downloads
+#    ports:
+#      - 8080:8080
+##      - 9090:9090
+#    restart: unless-stopped
+
+  nzbget:
+    image: linuxserver/nzbget
+    container_name: nzbget
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/nzbget/config:/config
+      - $TMP_DIR/downloads:/downloads
+    ports:
+      - 6789:6789
+    restart: unless-stopped
+    networks:
+      - external
+
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/sonarr/config:/config
+      - $MEDIA_DIR/Series:/tv
+      - $TMP_DIR/downloads:/downloads
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+    networks:
+      - external
+
+  radarr:
+    image: linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/radarr/config:/config
+      - $MEDIA_DIR/Movies:/movies
+      - $TMP_DIR/downloads:/downloads
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    networks:
+      - external
+
+  lidarr:
+    image: linuxserver/lidarr
+    container_name: lidarr
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/lidarr/config:/config
+      - $MEDIA_DIR/Music:/music
+      - $TMP_DIR/downloads:/downloads
+    ports:
+      - 8686:8686
+    restart: unless-stopped
+    networks:
+      - external
+
+  bazarr:
+    image: linuxserver/bazarr
+    container_name: bazarr
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/bazarr/config:/config
+      - $MEDIA_DIR/Movies:/movies
+      - $MEDIA_DIR/Series:/tv
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+    networks:
+      - external
+
+  nzbhydra:
+    image: hotio/nzbhydra2
+    container_name: nzbhydra
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/nzbhydra2/config:/config
+      - $APP_DIR/jackett/blackhole:/blackhole
+    ports:
+      - 5076:5076
+    restart: unless-stopped
+    networks:
+      - external
+
+  jackett:
+    image: linuxserver/jackett
+    container_name: jackett
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/jackett/config:/config
+      - $APP_DIR/jackett/blackhole:/blackhole
+    ports:
+      - 9117:9117
+    restart: unless-stopped
+    networks:
+      - external
+
+  # deluge:
+    # image: linuxserver/deluge
+    # container_name: deluge
+    # network_mode: host
+    # environment:
+      # - PUID=$USER_ID
+      # - PGID=$GROUP_ID
+      # - TZ=$TIMEZONE
+    # volumes:
+      # - $APP_DIR/deluge/config:/config
+      # - $APP_DIR/jackett/blackhole:/blackhole
+      # - $APP_DIR/deluge/downloads:/downloads
+      # - $APP_DIR/deluge/incomplete-downloads:/incomplete-downloads
+    # restart: unless-stopped
+
+  tautulli:
+    image: linuxserver/tautulli
+    container_name: tautulli
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/tautulli/config:/config
+#      - path to plex logs:/log
+    ports:
+      - 8181:8181
+    restart: unless-stopped
+    networks:
+      - external
+
+  airsonic:
+    image: linuxserver/airsonic
+    container_name: airsonic
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+      - JAVA_OPTS=-Dserver.use-forward-headers=true
+    volumes:
+      - $APP_DIR/airsonic/config:/config
+      - $APP_DIR/airsonic/playlists:/playlists
+      - $MEDIA_DIR/Music:/music
+    ports:
+      - 4041:4040
+    restart: unless-stopped
+    networks:
+      - external
+
+  # mymediaforalexa:
+    # image: bizmodeller/mymediaforalexa
+    # container_name: mymediaforalexa
+    # volumes:
+      # - $APP_DIR/mymediaforalexa/data:/datadir
+      # - $MEDIA_DIR/Music:/medialibrary
+    # ports:
+      # - 52050:52050
+      # - 52051:52051
+    # restart: unless-stopped
+    # networks:
+      # - external
+
+  heimdall:
+    image: linuxserver/heimdall
+    container_name: heimdall
+    environment:
+     - PUID=$USER_ID
+     - PGID=$GROUP_ID
+     - TZ=$TIMEZONE
+    volumes:
+      - $APP_DIR/heimdall/config:/config
+    ports:
+      - 3456:80
+    restart: unless-stopped
+    networks:
+      - external
+
+  portainer:
+    container_name: portainer
+    image: portainer/portainer:latest
+    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
+    networks:
+      - external
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 9000:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - $APP_DIR/portainer/data:/data # Change to local directory if you want to save/transfer config locally
+    environment:
+      - TZ=$TIMEZONE
+
+  handbrake:
+    image: jlesage/handbrake:latest
+    container_name: handbrake
+    environment:
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+      - KEEP_APP_RUNNING=1
+      - CLEAN_TMP_DIR=1
+      - AUTOMATED_CONVERSION_PRESET=General/Very Fast 1080p30
+      - AUTOMATED_CONVERSION_FORMAT=mp4
+      - AUTOMATED_CONVERSION_KEEP_SOURCE=1
+      - AUTOMATED_CONVERSION_NON_VIDEO_FILE_ACTION=ignore
+      - AUTOMATED_CONVERSION_OUTPUT_DIR=/output
+    volumes:
+      - $APP_DIR/handbrake/config:/config
+      - $APP_DIR/handbrake/watch:/watch
+      - $APP_DIR/handbrake/wip_media:/output
+      - $MEDIA_DIR/Movies:/movies
+      - $TMP_DIR/downloads:/downloads
+    ports:
+      - 5800:5800
+    restart: unless-stopped
+    networks:
+      - external
+
+  scope:
+      image: weaveworks/scope:1.13.1
+      network_mode: "host"
+      pid: "host"
+      privileged: true
+      labels:
+        - "works.weave.role=system"
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock:rw"
+      command:
+        - "--probe.docker=true"
+        
+  overseerr:
+    image: sctx/overseerr:latest
+    container_name: overseerr
+    environment:
+      - LOG_LEVEL=info
+      - PUID=$USER_ID
+      - PGID=$GROUP_ID
+      - TZ=$TIMEZONE
+    ports:
+      - 5055:5055
+    volumes:     
+       - $APP_DIR/overseerr/config:/config   
+    restart: unless-stopped
