@@ -1,28 +1,57 @@
 ---
 version: "3.6"
 
+secrets:
+ openvpn_username:
+  file: ./secrets/openvpn_username
+ openvpn_password:
+  file: ./secrets/openvpn_password
+ openvpn_config:
+  file: ./secrets/openvpn_config
+
 networks:
   external:
   default:
     driver: bridge
+  Thera:
+    internal: true
 
 services:
 
-#  sabnzbd:
-#    image: linuxserver/sabnzbd
-#    container_name: sabnzbd
-#    environment:
-#      - PUID=$USER_ID
-#      - PGID=$GROUP_ID
-#      - TZ=$TIMEZONE
-#    volumes:
-#      - $APP_DIR/sabnzbd/config:/config
-#      - $TMP_DIR/downloads:/downloads
-#      - $APP_DIR/sabnzbd/incomplete-downloads:/incomplete-downloads
-#    ports:
-#      - 8080:8080
-##      - 9090:9090
-#    restart: unless-stopped
+transmission:
+    image: haugene/transmission-openvpn
+    container_name: transmission
+    restart: unless-stopped
+    volumes:
+     - "/etc/localtime:/etc/localtime:ro"
+     - "./data:/data:rw"
+    secrets:
+     - openvpn_username
+     - openvpn_password
+     - openvpn_config
+    environment:
+     - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
+     - OPENVPN_USERNAME=/run/secrets/openvpn_username
+     - OPENVPN_PASSWORD=/run/secrets/openvpn_password
+     - OPENVPN_CONFIG=/run/secrets/openvpn_config
+     - LAN=192.168.0.0/24
+     - CREATE_TUN_DEVICE=true
+     - UFW_DISABLE_IPTABLES_REJECT=true
+     - PUID=1035
+     - PGID=100
+    cap_add:
+     - NET_ADMIN
+    devices:
+     - /dev/net/tun
+    sysctls:
+     - net.ipv6.conf.all.disable_ipv6=1
+    dns:
+     - 1.1.1.1
+     - 1.0.0.1
+    logging:
+     driver: json-file
+     options:
+        max-size: 10m
 
   nzbget:
     image: linuxserver/nzbget
@@ -55,7 +84,7 @@ services:
       - 8989:8989
     restart: unless-stopped
     networks:
-      - external
+      - Thera
 
   radarr:
     image: linuxserver/radarr
@@ -72,7 +101,7 @@ services:
       - 7878:7878
     restart: unless-stopped
     networks:
-      - external
+      - Thera
 
   lidarr:
     image: linuxserver/lidarr
@@ -138,22 +167,7 @@ services:
       - 9117:9117
     restart: unless-stopped
     networks:
-      - external
-
-  # deluge:
-    # image: linuxserver/deluge
-    # container_name: deluge
-    # network_mode: host
-    # environment:
-      # - PUID=$USER_ID
-      # - PGID=$GROUP_ID
-      # - TZ=$TIMEZONE
-    # volumes:
-      # - $APP_DIR/deluge/config:/config
-      # - $APP_DIR/jackett/blackhole:/blackhole
-      # - $APP_DIR/deluge/downloads:/downloads
-      # - $APP_DIR/deluge/incomplete-downloads:/incomplete-downloads
-    # restart: unless-stopped
+      - Thera
 
   tautulli:
     image: linuxserver/tautulli
@@ -188,19 +202,6 @@ services:
     restart: unless-stopped
     networks:
       - external
-
-  # mymediaforalexa:
-    # image: bizmodeller/mymediaforalexa
-    # container_name: mymediaforalexa
-    # volumes:
-      # - $APP_DIR/mymediaforalexa/data:/datadir
-      # - $MEDIA_DIR/Music:/medialibrary
-    # ports:
-      # - 52050:52050
-      # - 52051:52051
-    # restart: unless-stopped
-    # networks:
-      # - external
 
   heimdall:
     image: linuxserver/heimdall
@@ -285,3 +286,48 @@ services:
     volumes:     
        - $APP_DIR/overseerr/config:/config   
     restart: unless-stopped
+
+
+    #  sabnzbd:
+#    image: linuxserver/sabnzbd
+#    container_name: sabnzbd
+#    environment:
+#      - PUID=$USER_ID
+#      - PGID=$GROUP_ID
+#      - TZ=$TIMEZONE
+#    volumes:
+#      - $APP_DIR/sabnzbd/config:/config
+#      - $TMP_DIR/downloads:/downloads
+#      - $APP_DIR/sabnzbd/incomplete-downloads:/incomplete-downloads
+#    ports:
+#      - 8080:8080
+##      - 9090:9090
+#    restart: unless-stopped
+
+  # mymediaforalexa:
+    # image: bizmodeller/mymediaforalexa
+    # container_name: mymediaforalexa
+    # volumes:
+      # - $APP_DIR/mymediaforalexa/data:/datadir
+      # - $MEDIA_DIR/Music:/medialibrary
+    # ports:
+      # - 52050:52050
+      # - 52051:52051
+    # restart: unless-stopped
+    # networks:
+      # - external
+
+  # deluge:
+    # image: linuxserver/deluge
+    # container_name: deluge
+    # network_mode: host
+    # environment:
+      # - PUID=$USER_ID
+      # - PGID=$GROUP_ID
+      # - TZ=$TIMEZONE
+    # volumes:
+      # - $APP_DIR/deluge/config:/config
+      # - $APP_DIR/jackett/blackhole:/blackhole
+      # - $APP_DIR/deluge/downloads:/downloads
+      # - $APP_DIR/deluge/incomplete-downloads:/incomplete-downloads
+    # restart: unless-stopped
