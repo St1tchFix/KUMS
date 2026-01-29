@@ -1,0 +1,17 @@
+overlays:
+  Fr:
+    plex_search:
+      all:
+        collection: Films_Francais_Original
+    overlay:
+      name: text(Fr)
+      horizontal_offset: 105
+      horizontal_align: left
+      vertical_offset: 30
+      vertical_align: bottom
+      font_size: 50
+      font_color: "#FFFFFF"
+      back_color: "#1A1A1AAA"
+      back_width: 70
+      back_height: 70
+      back_radius: 10

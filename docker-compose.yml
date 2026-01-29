@@ -1,333 +1,278 @@
----
-version: "3.6"
-
-secrets:
- openvpn_username:
-  file: ./secrets/openvpn_username
- openvpn_password:
-  file: ./secrets/openvpn_password
- openvpn_config:
-  file: ./secrets/openvpn_config
+# docker-compose.yml - Media Stack (Plex + *arr + NZB + Overseerr + Pi-hole + Traefik + Prowlarr)
+# Run with: docker compose up -d
+# Location: ~/ums
+# Subdomains: *.local via Traefik (HTTPS)
+# Direct ports are commented out - all access should go through Traefik (except Plex which uses host network)
+# logs are centralized to ~/ums/tmp/logs/<app> for easy host access and debugging
+# Date: Janvier 2026 - Version sécurisée avec IP whitelist + auth basique
 
 networks:
-  external:
   default:
     driver: bridge
-  Thera:
-    internal: true
+    name: ums_default  # Réseau dédié pour isolation et Traefik
 
 services:
-
-transmission:
-    image: haugene/transmission-openvpn
-    container_name: transmission
+  traefik:
+    image: traefik:latest
+    container_name: traefik
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true  # Empêche l'escalade de privilèges
+    ports:
+      - "80:80"     # HTTP → redirect vers HTTPS
+      - "443:443"   # HTTPS principal
     volumes:
-     - "/etc/localtime:/etc/localtime:ro"
-     - "./data:/data:rw"
-    secrets:
-     - openvpn_username
-     - openvpn_password
-     - openvpn_config
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Traefik détecte les containers     
+      - ${TMP_DIR}/logs/traefik:/logs             # logs Traefik sur host
+      - ${APP_DIR}/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ${APP_DIR}/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ${APP_DIR}/traefik/certs:/certs:ro  # Certs mkcert self-signed
+    command:
+      - --api=true
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=ums_default
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --log.level=INFO
+    networks:
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.local`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.middlewares=internal-ipwhitelist@file,auth@file"
+
+  plex:
+    image: ghcr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host  # Nécessaire pour discovery, direct play et accès externe (IP:32400)
     environment:
-     - OPENVPN_PROVIDER=${OPENVPN_PROVIDER}
-     - OPENVPN_USERNAME=/run/secrets/openvpn_username
-     - OPENVPN_PASSWORD=/run/secrets/openvpn_password
-     - OPENVPN_CONFIG=/run/secrets/openvpn_config
-     - LAN=192.168.0.0/24
-     - CREATE_TUN_DEVICE=true
-     - UFW_DISABLE_IPTABLES_REJECT=true
-     - PUID=1035
-     - PGID=100
-    cap_add:
-     - NET_ADMIN
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - VERSION=docker
+      - PLEX_CLAIM=
+    volumes:
+      - ${APP_DIR}/plex/config:/config                    # Config + DB Plex
+      - ${PLEX_DIR}/Series:/Series                        # Séries
+      - ${PLEX_DIR}/Movies:/Movies                        # Films
+      - ${APP_DIR}/plex/certs:/certs:ro
+      - ${TMP_DIR}/logs/plex:/config/Library/Application Support/Plex Media Server/Logs
+      - /dev/shm:/ramtranscode                             # Transcode RAM      
+    restart: unless-stopped
     devices:
-     - /dev/net/tun
-    sysctls:
-     - net.ipv6.conf.all.disable_ipv6=1
-    dns:
-     - 1.1.1.1
-     - 1.0.0.1
-    logging:
-     driver: json-file
-     options:
-        max-size: 10m
+      - /dev/dri:/dev/dri  # Accélération hardware
 
   nzbget:
-    image: linuxserver/nzbget
+    image: linuxserver/nzbget:latest
     container_name: nzbget
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/nzbget/config:/config
-      - $TMP_DIR/downloads:/downloads
-    ports:
-      - 6789:6789
     restart: unless-stopped
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${APP_DIR}/nzbget/config:/config                  # Config NZBGet
+      - ${TMP_DIR}/downloads:/downloads                   # Téléchargements
+      - ${TMP_DIR}/logs/nzbget:/config/logs               # logs NZBGet sur host
+    # ports:
+    #   - "6789:6789"  # Commenté - accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nzbget.rule=Host(`nzbget.local`)"
+      - "traefik.http.routers.nzbget.entrypoints=websecure"
+      - "traefik.http.routers.nzbget.tls=true"
+      - "traefik.http.services.nzbget.loadbalancer.server.port=6789"
+      - "traefik.http.routers.nzbget.middlewares=internal-ipwhitelist@file"
     networks:
-      - external
+      - default
 
   sonarr:
-    image: linuxserver/sonarr
+    image: linuxserver/sonarr:latest
     container_name: sonarr
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/sonarr/config:/config
-      - $MEDIA_DIR/Series:/tv
-      - $TMP_DIR/downloads:/downloads
-    ports:
-      - 8989:8989
     restart: unless-stopped
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${APP_DIR}/sonarr/config:/config                  # Config Sonarr
+      - ${TMP_DIR}/downloads:/downloads                   # Téléchargements
+      - ${PLEX_DIR}/Series:/Series                        # Séries
+      - ${TMP_DIR}/logs/sonarr:/config/logs               # logs Sonarr sur host
+    # ports:
+    #   - "8989:8989"  # Commenté - accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.rule=Host(`sonarr.local`)"
+      - "traefik.http.routers.sonarr.entrypoints=websecure"
+      - "traefik.http.routers.sonarr.tls=true"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+      - "traefik.http.routers.sonarr.middlewares=internal-ipwhitelist@file,auth@file"
     networks:
-      - Thera
+      - default
 
   radarr:
-    image: linuxserver/radarr
+    image: linuxserver/radarr:latest
     container_name: radarr
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/radarr/config:/config
-      - $MEDIA_DIR/Movies:/movies
-      - $TMP_DIR/downloads:/downloads
-    ports:
-      - 7878:7878
     restart: unless-stopped
-    networks:
-      - Thera
-
-  lidarr:
-    image: linuxserver/lidarr
-    container_name: lidarr
     environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
     volumes:
-      - $APP_DIR/lidarr/config:/config
-      - $MEDIA_DIR/Music:/music
-      - $TMP_DIR/downloads:/downloads
-    ports:
-      - 8686:8686
-    restart: unless-stopped
+      - ${APP_DIR}/radarr/config:/config                  # Config Radarr
+      - ${TMP_DIR}/downloads:/downloads                   # Téléchargements
+      - ${PLEX_DIR}/Movies:/Movies                        # Films
+      - ${TMP_DIR}/logs/radarr:/config/logs               # logs Radarr sur host
+    # ports:
+    #   - "7878:7878"  # Commenté - accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.local`)"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.tls=true"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+      - "traefik.http.routers.radarr.middlewares=internal-ipwhitelist@file,auth@file"
     networks:
-      - external
+      - default
 
-  bazarr:
-    image: linuxserver/bazarr
-    container_name: bazarr
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/bazarr/config:/config
-      - $MEDIA_DIR/Movies:/movies
-      - $MEDIA_DIR/Series:/tv
-    ports:
-      - 6767:6767
-    restart: unless-stopped
-    networks:
-      - external
+  # nzbhydra block commented out - not used anymore
+  # nzbhydra:
+  #   image: ghcr.io/hotio/nzbhydra2:latest
+  #   container_name: nzbhydra
+  #   restart: unless-stopped
+  #   environment:
+  #     - PUID=${USER_ID}
+  #     - PGID=${GROUP_ID}
+  #     - TZ=${TIMEZONE}
+  #   volumes:
+  #     - ${APP_DIR}/nzbhydra2/config:/config
+  #     - ${TMP_DIR}/logs/nzbhydra:/config/logs
+  #   # ports:
+  #   #   - "5076:5076"
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.nzbhydra.rule=Host(`nzbhydra.local`)"
+  #     - "traefik.http.routers.nzbhydra.entrypoints=websecure"
+  #     - "traefik.http.routers.nzbhydra.tls=true"
+  #     - "traefik.http.services.nzbhydra.loadbalancer.server.port=5076"
+  #     - "traefik.http.routers.nzbhydra.middlewares=internal-ipwhitelist@file,auth@file"
+  #   networks:
+  #     - default
 
-  nzbhydra:
-    image: hotio/nzbhydra2
-    container_name: nzbhydra
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/nzbhydra2/config:/config
-      - $APP_DIR/jackett/blackhole:/blackhole
-    ports:
-      - 5076:5076
-    restart: unless-stopped
-    networks:
-      - external
-
-  jackett:
-    image: linuxserver/jackett
-    container_name: jackett
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/jackett/config:/config
-      - $APP_DIR/jackett/blackhole:/blackhole
-    ports:
-      - 9117:9117
-    restart: unless-stopped
-    networks:
-      - Thera
-
-  tautulli:
-    image: linuxserver/tautulli
-    container_name: tautulli
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/tautulli/config:/config
-#      - path to plex logs:/log
-    ports:
-      - 8181:8181
-    restart: unless-stopped
-    networks:
-      - external
-
-  airsonic:
-    image: linuxserver/airsonic
-    container_name: airsonic
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-      - JAVA_OPTS=-Dserver.use-forward-headers=true
-    volumes:
-      - $APP_DIR/airsonic/config:/config
-      - $APP_DIR/airsonic/playlists:/playlists
-      - $MEDIA_DIR/Music:/music
-    ports:
-      - 4041:4040
-    restart: unless-stopped
-    networks:
-      - external
-
-  heimdall:
-    image: linuxserver/heimdall
-    container_name: heimdall
-    environment:
-     - PUID=$USER_ID
-     - PGID=$GROUP_ID
-     - TZ=$TIMEZONE
-    volumes:
-      - $APP_DIR/heimdall/config:/config
-    ports:
-      - 3456:80
-    restart: unless-stopped
-    networks:
-      - external
-
-  portainer:
-    container_name: portainer
-    image: portainer/portainer:latest
-    restart: unless-stopped
-    command: -H unix:///var/run/docker.sock
-    networks:
-      - external
-    security_opt:
-      - no-new-privileges:true
-    ports:
-      - 9000:9000
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - $APP_DIR/portainer/data:/data # Change to local directory if you want to save/transfer config locally
-    environment:
-      - TZ=$TIMEZONE
-
-  handbrake:
-    image: jlesage/handbrake:latest
-    container_name: handbrake
-    environment:
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-      - KEEP_APP_RUNNING=1
-      - CLEAN_TMP_DIR=1
-      - AUTOMATED_CONVERSION_PRESET=General/Very Fast 1080p30
-      - AUTOMATED_CONVERSION_FORMAT=mp4
-      - AUTOMATED_CONVERSION_KEEP_SOURCE=1
-      - AUTOMATED_CONVERSION_NON_VIDEO_FILE_ACTION=ignore
-      - AUTOMATED_CONVERSION_OUTPUT_DIR=/output
-    volumes:
-      - $APP_DIR/handbrake/config:/config
-      - $APP_DIR/handbrake/watch:/watch
-      - $APP_DIR/handbrake/wip_media:/output
-      - $MEDIA_DIR/Movies:/movies
-      - $TMP_DIR/downloads:/downloads
-    ports:
-      - 5800:5800
-    restart: unless-stopped
-    networks:
-      - external
-
-  scope:
-      image: weaveworks/scope:1.13.1
-      network_mode: "host"
-      pid: "host"
-      privileged: true
-      labels:
-        - "works.weave.role=system"
-      volumes:
-        - "/var/run/docker.sock:/var/run/docker.sock:rw"
-      command:
-        - "--probe.docker=true"
-        
   overseerr:
     image: sctx/overseerr:latest
     container_name: overseerr
+    restart: unless-stopped
     environment:
       - LOG_LEVEL=info
-      - PUID=$USER_ID
-      - PGID=$GROUP_ID
-      - TZ=$TIMEZONE
-    ports:
-      - 5055:5055
-    volumes:     
-       - $APP_DIR/overseerr/config:/config   
-    restart: unless-stopped
-
-
-    #  sabnzbd:
-#    image: linuxserver/sabnzbd
-#    container_name: sabnzbd
-#    environment:
-#      - PUID=$USER_ID
-#      - PGID=$GROUP_ID
-#      - TZ=$TIMEZONE
-#    volumes:
-#      - $APP_DIR/sabnzbd/config:/config
-#      - $TMP_DIR/downloads:/downloads
-#      - $APP_DIR/sabnzbd/incomplete-downloads:/incomplete-downloads
-#    ports:
-#      - 8080:8080
-##      - 9090:9090
-#    restart: unless-stopped
-
-  # mymediaforalexa:
-    # image: bizmodeller/mymediaforalexa
-    # container_name: mymediaforalexa
-    # volumes:
-      # - $APP_DIR/mymediaforalexa/data:/datadir
-      # - $MEDIA_DIR/Music:/medialibrary
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${APP_DIR}/overseerr/config:/app/config           # Config Overseerr
+      - ${TMP_DIR}/logs/overseerr:/app/config/logs        # logs Overseerr sur host (si activé dans settings)
     # ports:
-      # - 52050:52050
-      # - 52051:52051
-    # restart: unless-stopped
-    # networks:
-      # - external
+    #   - "5055:5055"  # Commenté - accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.overseerr.rule=Host(`overseerr.local`)"
+      - "traefik.http.routers.overseerr.entrypoints=websecure"
+      - "traefik.http.routers.overseerr.tls=true"
+      - "traefik.http.services.overseerr.loadbalancer.server.port=5055"
+      - "traefik.http.routers.overseerr.middlewares=internal-ipwhitelist@file,auth@file,overseerr-strip@file"	
+      #- "traefik.http.routers.overseerr.middlewares=internal-ipwhitelist@file,auth@file"
 
-  # deluge:
-    # image: linuxserver/deluge
-    # container_name: deluge
-    # network_mode: host
-    # environment:
-      # - PUID=$USER_ID
-      # - PGID=$GROUP_ID
-      # - TZ=$TIMEZONE
-    # volumes:
-      # - $APP_DIR/deluge/config:/config
-      # - $APP_DIR/jackett/blackhole:/blackhole
-      # - $APP_DIR/deluge/downloads:/downloads
-      # - $APP_DIR/deluge/incomplete-downloads:/incomplete-downloads
-    # restart: unless-stopped
+    networks:
+      - default
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE}
+      FTLCONF_webserver_api_password: Kfd932mdDc3245..324!
+      FTLCONF_dns_upstreams: '1.1.1.1;8.8.8.8'
+      FTLCONF_webserver_port: 80
+      FTLCONF_dns_listeningMode: 'ALL'
+      FTLCONF_dns_reply_host_IPv4: '192.168.1.6'
+    volumes:
+      - ${APP_DIR}/pihole/etc-pihole:/etc/pihole          # Config Pi-hole
+      - ${APP_DIR}/pihole/etc-dnsmasq.d:/etc/dnsmasq.d    # Custom DNS
+      - ${APP_DIR}/traefik:/etc/traefik:ro                # ? (votre choix)
+      - ${TMP_DIR}/logs/pihole:/var/log/pihole            # logs Pi-hole sur host
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "53:53/tcp"     # DNS obligatoire
+      - "53:53/udp"     # DNS obligatoire
+      # - "67:67/udp"   # DHCP si utilisé
+      # - "8080:80"     # Web admin direct - commenté si accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.rule=Host(`pihole.local`)"
+      - "traefik.http.routers.pihole.entrypoints=websecure"
+      - "traefik.http.routers.pihole.tls=true"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+      - "traefik.http.routers.pihole.middlewares=internal-ipwhitelist@file,auth@file"
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "pidof", "pihole-FTL"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${APP_DIR}/prowlarr/config:/config                # Config Prowlarr
+      - ${TMP_DIR}/logs/prowlarr:/config/logs             # logs Prowlarr sur host
+    # ports:
+    #   - "9696:9696"  # Commenté - accès via Traefik uniquement
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.local`)"
+      - "traefik.http.routers.prowlarr.entrypoints=websecure"
+      - "traefik.http.routers.prowlarr.tls=true"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+      - "traefik.http.routers.prowlarr.middlewares=internal-ipwhitelist@file,auth@file"
+    networks:
+      - default
+  kometa:
+    image: kometateam/kometa:latest
+    container_name: kometa
+    restart: no              # Garder le container up pour le scheduler
+    deploy:
+      resources:
+        limits:
+          cpus: '0.20'      # Limit CPU
+          memory: 1536M    # Limit RAM   
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - KOMETA_RUN=true
+      #- KOMETA_TIME=never                # Run tous les jours à 3h du matin (format HH:MM)
+    volumes:
+      - ${APP_DIR}/kometa/config:/config  # Config + assets + logs
+      - ${TMP_DIR}/logs/kometa:/config/logs
+    # Pas de second volume logs (plus simple et évite bugs chemins)
+    # Pas de ports/UI — CLI only
+    # Pas de Traefik labels — pas besoin d'accès web

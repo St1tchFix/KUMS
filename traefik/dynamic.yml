@@ -1,0 +1,30 @@
+http:
+  middlewares:
+    internal-ipwhitelist:
+      ipAllowList:
+        sourceRange:
+          - "127.0.0.1/32"
+          - "192.168.0.0/16"
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+    auth:
+      basicAuth:
+        users:
+          - umsusr:$apr1$CF8zDIPj$/4hR5L.vvOQtR.ewjvIsK/
+          # Tu peux ajouter d'autres users sur des lignes séparées si besoin
+    overseerr-strip:
+      stripPrefix:
+        prefixes:
+          - "/"
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/wildcard.local.crt
+        keyFile: /certs/wildcard.local.key
+
+  certificates:
+    - certFile: /certs/wildcard.local.crt
+      keyFile: /certs/wildcard.local.key
+      stores:
+        - default

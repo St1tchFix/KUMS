@@ -1,0 +1,26 @@
+collections:
+  Films_Francais_Original:
+    sync_mode: sync
+    visible_library: true
+    visible_home: false
+    visible_shared: false
+    cache_builders: 30
+    #schedule: weekly(monday)
+    plex_all: true
+    filters:
+      original_language: fr
+    summary: Films français originaux
+    sort_title: "!_Français Original"
+
+  Series_Francais_Original:
+    sync_mode: sync
+    visible_library: true
+    visible_home: false
+    visible_shared: false
+    cache_builders: 30
+    #schedule: weekly(monday)
+    plex_all: true
+    filters:
+      original_language: fr
+    summary: Séries françaises originales
+    sort_title: "!_Français Original"

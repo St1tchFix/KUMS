@@ -1,0 +1,123 @@
+# config.yml - Kometa final pour Films et Series : résolution custom + ratings chiffres dynamiques + langues VF/VO/Multi
+
+plex:
+  url: http://192.168.1.6:32400
+  token: GwNvQ6vDhJqfii9988Jm
+  timeout: 60
+  verify_ssl:
+  db_cache:
+  clean_bundles: false
+  empty_trash: false
+  optimize: false
+
+tmdb:
+  apikey: f7ea5dcab6a41e3d1b669ac340b71061
+  language: en
+  cache_expiration: 60
+  region:
+
+mdblist:
+  apikey: y2wi3dnvg25t331ha84aw8kgq   # Obligatoire pour Rotten Tomatoes critic
+  cache_expiration: 60
+  
+settings:
+  show_missing: true   # Logue les items sans poster (évite erreur silencieuse)
+  cache: true
+  cache_expiration: 60
+  asset_directory: /config/assets
+  asset_folders: true
+  sync_mode: append
+  run_again_delay: 0
+  save_report: true
+  item_refresh_delay: 30   # Delay pour éviter crash Plex sur grandes libraries
+  cache_builders: 30
+
+  run_order:
+  - operations
+  - metadata
+  - collections
+  - overlays
+  asset_depth: 0
+  create_asset_folders: false
+  prioritize_assets: false
+  dimensional_asset_rename: false
+  download_url_assets: false
+  show_missing_assets: true
+  show_missing_season_assets: false
+  show_missing_episode_assets: false
+  show_asset_not_needed: true
+  default_collection_order:
+  minimum_items: 1
+  delete_below_minimum: false
+  delete_not_scheduled: false
+  missing_only_released: false
+  only_filter_missing: false
+  show_unmanaged: true
+  show_unconfigured: true
+  show_filtered: false
+  show_unfiltered: false
+  show_options: false
+  tvdb_language: default
+  ignore_ids:
+  ignore_imdb_ids:
+  playlist_sync_to_users:
+  playlist_exclude_users:
+  playlist_report: true
+  custom_repo:
+  overlay_artwork_filetype: webp_lossy
+  overlay_artwork_quality: 90
+libraries:
+  Films:
+    collection_files:
+    - pmm: imdb
+      template_variables:
+        use_top: true
+    - pmm: tmdb
+      template_variables:
+        use_popular: true
+        use_trending: true
+        use_top_rated: true      # Ajout : Top Rated TMDb
+        use_awards: true         # Ajout : Films primés (Oscars, Cannes, Venice, Golden Globe, BAFTA, etc.)
+    # Ajout : Collections par année récente (films sortis récemment dans votre library)
+    - pmm: year
+      template_variables:
+        starting: 2023           # À partir de 2023 (ajustez si vous voulez plus ancien)
+        ending: 2026             # Jusqu'à 2026 (inclut futurs si disponibles)
+        sort_by: release.desc    # Tri par date de sortie descendante (plus récents en haut)
+    - file: /config/collections/collections-languages.yml   # Collections cachées (original français Films/Series)
+
+    overlay_files:
+    - file: /config/overlays/overlays-resolution.yml     # Résolution texte SD/HD/4K
+    - file: /config/overlays/overlays-ratings.yml        # Ratings chiffres dynamiques + fonds
+    - file: /config/overlays/overlays-langues.yml        # Langues VF/VO/Multi
+    - file: /config/overlays/overlays-fr-movies.yml     # "Fr" seulement sur Films
+    operations:
+      mass_user_rating_update: imdb
+      mass_audience_rating_update: tmdb
+      mass_critic_rating_update: mdb_tomatoes
+      assets_for_all: false    # Don't update all assets
+      reapply_overlays: false  # Don't reapply existing overlays
+    item_refresh_delay: 30
+
+  Series:
+    collection_files:
+    - pmm: tmdb
+      template_variables:
+        use_trending: true
+        use_popular: true
+    - file: /config/collections/collections-languages.yml   # Collections cachées (original français Films/Series)
+
+    overlay_files:
+    - file: /config/overlays/overlays-resolution.yml     # Résolution sur poster série
+    - file: /config/overlays/overlays-ratings.yml        # Ratings sur poster série
+    - file: /config/overlays/overlays-langues.yml        # Langues sur poster série
+    - file: /config/overlays/overlays-fr-series.yml    # "Fr" seulement sur Series
+    operations:
+      mass_user_rating_update: imdb
+      mass_audience_rating_update: tmdb
+      mass_critic_rating_update: mdb_tomatoes
+      assets_for_all: false    # Don't update all assets
+      reapply_overlays: false  # Don't reapply existing overlays
+    item_refresh_delay: 30
+
+  # Gardez Movietest pour tests si vous voulez

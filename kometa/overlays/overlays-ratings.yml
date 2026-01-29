@@ -1,0 +1,54 @@
+overlays:
+  IMDb-Rating:
+    plex_search:
+      all:
+        user_rating.gte: 0.1
+    overlay:
+      name: text(<<user_rating>>)
+      horizontal_offset: 15
+      horizontal_align: right
+      vertical_offset: 15
+      vertical_align: top
+      font_size: 71
+      font_color: "#F5C518"
+      back_color: "#000000CC"
+      back_width: 72
+      back_height: 51
+      back_radius: 16
+      back_padding: 16
+
+  TMDb-Rating:
+    plex_search:
+      all:
+        audience_rating.gte: 0.1
+    overlay:
+      name: text(<<audience_rating>>)
+      horizontal_offset: 15
+      horizontal_align: right
+      vertical_offset: 106         # +10px espace (gap ~40px)
+      vertical_align: top
+      font_size: 71
+      font_color: "#01B4E4"
+      back_color: "#000000CC"
+      back_width: 72
+      back_height: 51
+      back_radius: 16
+      back_padding: 16
+
+  RT-Rating:
+    plex_search:
+      all:
+        critic_rating.gte: 0.1
+    overlay:
+      name: text(<<critic_rating>>)
+      horizontal_offset: 15
+      horizontal_align: right
+      vertical_offset: 197         # +10px espace (gap ~40px)
+      vertical_align: top
+      font_size: 71
+      font_color: "#FA320A"
+      back_color: "#000000CC"
+      back_width: 72
+      back_height: 51
+      back_radius: 16
+      back_padding: 16

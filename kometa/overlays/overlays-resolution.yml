@@ -1,0 +1,71 @@
+overlays:
+  Resolution-4K:
+    plex_search:
+      all:
+        resolution: 
+          - 4K  # Utilisez un filtre simple plutôt qu'un regex
+          - 2160p
+        #resolution.regex: "(?i)4k|2160|uhd"   # Tolérant pour 4K/4k/2160p/UHD
+    overlay:
+      name: text(4K)
+      horizontal_offset: 15
+      horizontal_align: left
+      vertical_offset: 15
+      vertical_align: top
+      font_size: 85                 # +30% (de 65)
+      font_color: "#FFFFFF"
+      back_color: "#000000DD"
+      back_width: 130               # +30%
+      back_height: 90
+      back_radius: 20               # Augmenté pour proportion
+
+  Resolution-1080p:
+    plex_search:
+      all:
+        resolution: 1080p
+    overlay:
+      name: text(HD)
+      horizontal_offset: 15
+      horizontal_align: left
+      vertical_offset: 15
+      vertical_align: top
+      font_size: 85
+      font_color: "#FFFFFF"
+      back_color: "#000000DD"
+      back_width: 130
+      back_height: 90
+      back_radius: 20
+
+  Resolution-720p:
+    plex_search:
+      all:
+        resolution: 720p
+    overlay:
+      name: text(HD)
+      horizontal_offset: 15
+      horizontal_align: left
+      vertical_offset: 15
+      vertical_align: top
+      font_size: 85
+      font_color: "#FFFFFF"
+      back_color: "#000000DD"
+      back_width: 130
+      back_height: 90
+      back_radius: 20
+
+  Resolution-SD:
+    plex_search:
+      all:
+        resolution: SD
+    overlay:
+      name: text(SD)
+      horizontal_offset: 15
+      horizontal_align: left
+      vertical_offset: 15
+      vertical_align: top
+      font_size: 85
+      font_color: "#FFFFFF"
+      back_color: "#000000DD"
+      back_width: 130
+      back_height: 90
+      back_radius: 20
