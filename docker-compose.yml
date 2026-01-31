@@ -65,7 +65,7 @@ services:
       - ${PLEX_DIR}/Movies:/Movies                        # Films
       - ${APP_DIR}/plex/certs:/certs:ro
       - ${TMP_DIR}/logs/plex:/config/Library/Application Support/Plex Media Server/Logs
-      - /dev/shm:/transcode                             # Transcode RAM      
+      - /dev/shm:/transcode                 # Transcode RAM      
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri  # Accélération hardware
@@ -268,7 +268,7 @@ services:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
-      - KOMETA_RUN=true
+      #- KOMETA_RUN=true
       #- KOMETA_TIME=never                # Run tous les jours à 3h du matin (format HH:MM)
     volumes:
       - ${APP_DIR}/kometa/config:/config  # Config + assets + logs
