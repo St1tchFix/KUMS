@@ -65,7 +65,7 @@ services:
       - ${PLEX_DIR}/Movies:/Movies                        # Films
       - ${APP_DIR}/plex/certs:/certs:ro
       - ${TMP_DIR}/logs/plex:/config/Library/Application Support/Plex Media Server/Logs
-      - /dev/shm:/ramtranscode                             # Transcode RAM      
+      - /dev/shm:/transcode                             # Transcode RAM      
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri  # Accélération hardware

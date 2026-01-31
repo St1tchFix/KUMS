@@ -11,7 +11,7 @@ http:
       basicAuth:
         users:
           - umsusr:$apr1$CF8zDIPj$/4hR5L.vvOQtR.ewjvIsK/
-          # Tu peux ajouter d'autres users sur des lignes séparées si besoin
+          # Tu peux ajouter d'autres users sur des lignes séparées si besoin !
     overseerr-strip:
       stripPrefix:
         prefixes:
